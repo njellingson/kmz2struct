@@ -184,7 +184,12 @@ function [Lat,Lon] = parseCoordinates(string)
     else
         coords = reshape(coords,3,m*n/3)';
     end
-    [Lat, Lon] = poly2ccw(coords(:,2),coords(:,1));
+    if license('test', 'map_toolbox')
+        [Lat, Lon] = poly2cw(coords(:,2),coords(:,1));
+    else
+        Lat=coords(:,2);
+        Lon=coords(:,1);
+    end
 end
 function [pointcolor,linecolor,polycolor] = parseStyle(element)
     % Try to find Style
