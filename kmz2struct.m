@@ -185,7 +185,7 @@ function [Lat,Lon] = parseCoordinates(string)
         coords = reshape(coords,3,m*n/3)';
     end
     if license('test', 'map_toolbox')
-        [Lat, Lon] = poly2cw(coords(:,2),coords(:,1));
+        [Lat, Lon] = poly2ccw(coords(:,2),coords(:,1));
     else
         Lat=coords(:,2);
         Lon=coords(:,1);
