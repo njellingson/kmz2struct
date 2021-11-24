@@ -1,21 +1,24 @@
 function kmlStruct = kmz2struct(filename)
     [~,~,ext] = fileparts(filename);
-    
+
     if strcmpi(ext,'.kmz')
-        userDir = [char(java.lang.System.getProperty('user.home')) '\.kml2struct\'];
+        userDir = fullfile( ...
+            char(java.lang.System.getProperty('user.home')), ...
+            '.kml2struct');
         if ~exist(userDir,'dir')
             mkdir(userDir);
         end
         unzip(filename, userDir);
-        
-        files = dir([userDir '**\*.kml']);
+
+        files = dir(fullfile(userDir, '**', '*.kml'));
         N = length(files);
         kmlStructs = cell([1 N]);
         for i = 1:length(files)
-            kmlStructs{i} = readKMLfile([files(i).folder '\' files(i).name]);
+            kmlStructs{i} = readKMLfile( ...
+                fullfile(files(i).folder, files(i).name));
         end
         kmlStruct = vertcat(kmlStructs{:});
-        
+
         rmdir(userDir,'s');
     else
         kmlStruct = readKMLfile(filename);
@@ -93,7 +96,7 @@ function kmlStruct = parsePlacemark(element,folder,stylehash)
     if ~isempty(element.getElementsByTagName('description').item(0))
         description = char(element.getElementsByTagName('description').item(0).getTextContent);
     end
-    
+
     % Try to find Style
     styleUrl = element.getElementsByTagName('styleUrl').item(0);
     if ~isempty(styleUrl)
@@ -103,17 +106,17 @@ function kmlStruct = parsePlacemark(element,folder,stylehash)
     else
         [pointcolor,linecolor,polycolor] = parseStyle(element);
     end
-    
+
     number_features = element.getElementsByTagName('coordinates').getLength();
     kmlStructs = cell([1 number_features]);
     count = 1;
-    
+
     % Handle Points
     points = element.getElementsByTagName('Point');
     for i = 0:points.getLength()-1
         coords = char(points.item(i).getElementsByTagName('coordinates').item(0).getTextContent);
         [Lat,Lon] = parseCoordinates(coords);
-        
+
         kmlStructs{count}.Geometry = 'Point';
         kmlStructs{count}.Name = name;
         if exist('description','var')
@@ -128,13 +131,13 @@ function kmlStruct = parsePlacemark(element,folder,stylehash)
         kmlStructs{count}.Color = pointcolor;
         count = count + 1;
     end
-    
+
     % Handle Polygons
     polygons = element.getElementsByTagName('Polygon');
     for i = 0:polygons.getLength()-1
         coords = char(polygons.item(i).getElementsByTagName('coordinates').item(0).getTextContent);
         [Lat,Lon] = parseCoordinates(coords);
-        
+
         kmlStructs{count}.Geometry = 'Polygon';
         kmlStructs{count}.Name = name;
         if exist('description','var')
@@ -149,13 +152,13 @@ function kmlStruct = parsePlacemark(element,folder,stylehash)
         kmlStructs{count}.Color = polycolor;
         count = count + 1;
     end
-    
+
     % Handle Lines
     lines = element.getElementsByTagName('LineString');
     for i = 0:lines.getLength()-1
         coords = char(lines.item(i).getElementsByTagName('coordinates').item(0).getTextContent);
         [Lat,Lon] = parseCoordinates(coords);
-        
+
         kmlStructs{count}.Geometry = 'Line';
         kmlStructs{count}.Name = name;
         if exist('description','var')
@@ -170,7 +173,7 @@ function kmlStruct = parsePlacemark(element,folder,stylehash)
         kmlStructs{count}.Color = linecolor;
         count = count + 1;
     end
-     
+
     % Compile answers
     kmlStruct = horzcat(kmlStructs{:});
 end
@@ -216,51 +219,51 @@ function [ rgb] = hex2rgb_kmlwrapper(hex)
     rgb = hex2rgb(hex([7 8 5 6 3 4]));
 end
 function [ rgb ] = hex2rgb(hex,range)
-% hex2rgb converts hex color values to rgb arrays on the range 0 to 1. 
-% 
-% 
-% * * * * * * * * * * * * * * * * * * * * 
+% hex2rgb converts hex color values to rgb arrays on the range 0 to 1.
+%
+%
+% * * * * * * * * * * * * * * * * * * * *
 % SYNTAX:
 % rgb = hex2rgb(hex) returns rgb color values in an n x 3 array. Values are
-%                    scaled from 0 to 1 by default. 
-%                    
-% rgb = hex2rgb(hex,256) returns RGB values scaled from 0 to 255. 
-% 
-% 
-% * * * * * * * * * * * * * * * * * * * * 
-% EXAMPLES: 
-% 
+%                    scaled from 0 to 1 by default.
+%
+% rgb = hex2rgb(hex,256) returns RGB values scaled from 0 to 255.
+%
+%
+% * * * * * * * * * * * * * * * * * * * *
+% EXAMPLES:
+%
 % myrgbvalue = hex2rgb('#334D66')
 %    = 0.2000    0.3020    0.4000
-% 
-% 
-% myrgbvalue = hex2rgb('334D66')  % <-the # sign is optional 
+%
+%
+% myrgbvalue = hex2rgb('334D66')  % <-the # sign is optional
 %    = 0.2000    0.3020    0.4000
-% 
+%
 %
 % myRGBvalue = hex2rgb('#334D66',256)
 %    = 51    77   102
-% 
-% 
+%
+%
 % myhexvalues = ['#334D66';'#8099B3';'#CC9933';'#3333E6'];
 % myrgbvalues = hex2rgb(myhexvalues)
 %    =   0.2000    0.3020    0.4000
 %        0.5020    0.6000    0.7020
 %        0.8000    0.6000    0.2000
 %        0.2000    0.2000    0.9020
-% 
-% 
+%
+%
 % myhexvalues = ['#334D66';'#8099B3';'#CC9933';'#3333E6'];
 % myRGBvalues = hex2rgb(myhexvalues,256)
 %    =   51    77   102
 %       128   153   179
 %       204   153    51
 %        51    51   230
-% 
-% HexValsAsACharacterArray = {'#334D66';'#8099B3';'#CC9933';'#3333E6'}; 
+%
+% HexValsAsACharacterArray = {'#334D66';'#8099B3';'#CC9933';'#3333E6'};
 % rgbvals = hex2rgb(HexValsAsACharacterArray)
-% 
-% * * * * * * * * * * * * * * * * * * * * 
+%
+% * * * * * * * * * * * * * * * * * * * *
 % Chad A. Greene, April 2014
 %
 % Updated August 2014: Functionality remains exactly the same, but it's a
@@ -270,20 +273,20 @@ function [ rgb ] = hex2rgb(hex,range)
 % style, which scaled values from 0 to 255 with range set to 255.  Now you
 % can enter 256 or 255 for the range, and the answer will be the same--rgb
 % values scaled from 0 to 255. Function now also accepts character arrays
-% as input. 
-% 
-% * * * * * * * * * * * * * * * * * * * * 
-% See also rgb2hex, dec2hex, hex2num, and ColorSpec. 
-% 
+% as input.
+%
+% * * * * * * * * * * * * * * * * * * * *
+% See also rgb2hex, dec2hex, hex2num, and ColorSpec.
+%
 % Copyright (c) 2014, Chad Greene
 % All rights reserved.
-% 
+%
 % Redistribution and use in source and binary forms, with or without
 % modification, are permitted provided that the following conditions are met:
-% 
+%
 % * Redistributions of source code must retain the above copyright notice, this
 %   list of conditions and the following disclaimer.
-% 
+%
 % * Redistributions in binary form must reproduce the above copyright notice,
 %   this list of conditions and the following disclaimer in the documentation
 %   and/or other materials provided with the distribution
@@ -301,35 +304,35 @@ function [ rgb ] = hex2rgb(hex,range)
 % OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 % OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 % Input checks:
-assert(nargin>0&nargin<3,'hex2rgb function must have one or two inputs.') 
+assert(nargin>0&nargin<3,'hex2rgb function must have one or two inputs.')
 if nargin==2
     assert(isscalar(range)==1,'Range must be a scalar, either "1" to scale from 0 to 1 or "256" to scale from 0 to 255.')
-end%% Tweak inputs if necessary: 
+end%% Tweak inputs if necessary:
 if iscell(hex)
     assert(isvector(hex)==1,'Unexpected dimensions of input hex values.')
-    
+
     % In case cell array elements are separated by a comma instead of a
     % semicolon, reshape hex:
     if isrow(hex)
-        hex = hex'; 
+        hex = hex';
     end
-    
-    % If input is cell, convert to matrix: 
+
+    % If input is cell, convert to matrix:
     hex = cell2mat(hex);
 end
 if strcmpi(hex(1,1),'#')
     hex(:,1) = [];
 end
 if nargin == 1
-    range = 1; 
+    range = 1;
 end
-% Convert from hex to rgb: 
+% Convert from hex to rgb:
 switch range
     case 1
         rgb = reshape(sscanf(hex.','%2x'),3,[]).'/255;
     case {255,256}
         rgb = reshape(sscanf(hex.','%2x'),3,[]).';
-    
+
     otherwise
         error('Range must be either "1" to scale from 0 to 1 or "256" to scale from 0 to 255.')
 end
