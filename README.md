@@ -1,4 +1,4 @@
-# Introduction
+# About
 This function converts KML and KMZ files into a MATLAB structure. If converting a KMZ file, this function extracts the KMZ to a directory called '.kml2struct' in the home directory. This directory is deleted when the function exits.
 
 The output of this function is similar to the MATLAB `shaperead`. It also adds fields for:
@@ -6,6 +6,11 @@ The output of this function is similar to the MATLAB `shaperead`. It also adds f
 - ***Color*** - The color of the shape as a three element row vector in RGB format.
 
 This function only handles KML/KMZ files with `Point`, `LineString`, and `Polygon` geometries. If this function is used to read a KML/KMZ with other elements, they are omitted from the result.
+
+# Installation
+The easiest way to install this function is to download it from the link below then add the kmz2struct.m file to your matlab path.
+
+[![View kmz2struct on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://www.mathworks.com/matlabcentral/fileexchange/70450-kmz2struct)
 
 # Usage
 To load a KML/KMZ file with this function, use the function like this:
@@ -36,5 +41,6 @@ The `kmz2struct` function performs the following steps:
 # Future Improvements
 - Load more types of KML/KMZ data.
 - Use regular expressions to improve the performance of part or all of the `kmz2struct` function.
+- Matpak integration?
 
 Feel free to open a pull request!
