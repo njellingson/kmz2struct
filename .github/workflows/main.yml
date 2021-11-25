@@ -20,9 +20,9 @@ jobs:
         with:
           report_paths: 'test-results/results.xml'
       - name: Code Coverage Summary Report
-        uses: irongut/CodeCoverageSummary@v1.0.2
+        uses: irongut/CodeCoverageSummary@v1.1.0
         with:
-            filename: 'code-coverage/coverage.xml'
+            filename: code-coverage/coverage.xml
             badge: true
             format: 'markdown'
             output: 'both'
