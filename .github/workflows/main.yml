@@ -20,9 +20,8 @@ jobs:
         with:
           report_paths: 'test-results/results.xml'
       - name: Code Coverage Summary Report
-        uses: irongut/CodeCoverageSummary@v1.1.0
+        uses: 5monkeys/cobertura-action@master
         with:
-            filename: code-coverage/coverage.xml
-            badge: true
-            format: 'markdown'
-            output: 'both'
+          path: code-coverage/coverage.xml
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          minimum_coverage: 75
