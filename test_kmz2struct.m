@@ -5,7 +5,7 @@
 about_equal = @(x,y) all(abs(x-y) < 0.0001);
 
 %% Test 1: Load Plate Boundries from a USGS Provied KMZ File
-S = kmz2struct(fullfile(current_directory,'Examples','plate-boundaries.kmz'));
+S = kmz2struct(fullfile(current_directory,'example-kmz','plate-boundaries.kmz'));
 T = struct2table(S);
 
 % Check geometry
@@ -23,7 +23,7 @@ assert(about_equal(tamayo_fracture_zone.Lat{1}(1),21.7990),'Starting latitude of
 assert(about_equal(tamayo_fracture_zone.Lon{1}(1), -106.8900),'Starting longitude of Tamayo Fault Zone is wrong.')
 
 %% Test 2: Load Data About Prospect- and mine-related features in DC on USGS topographic maps
-S = kmz2struct(fullfile(current_directory,'Examples','usmin-DC.kmz'));
+S = kmz2struct(fullfile(current_directory,'example-kmz','usmin-DC.kmz'));
 T = struct2table(S);
 
 % Check geometry
@@ -41,6 +41,6 @@ assert(about_equal(T.Lat{2}(1),38.8096),'Latitude of first point in Polygon is w
 assert(about_equal(T.Lon{2}(1),-77.0190),'Longitude of first point in Polygon is wrong.')
 
 %% Load Google KML Sample Data to Validate That Plain KML's Also Load
-S = kmz2struct(fullfile(current_directory,'Examples','KML_Samples.kml'));
+S = kmz2struct(fullfile(current_directory,'example-kmz','KML_Samples.kml'));
 T = struct2table(S);
 assert(height(T)==18,'Loaded wrong number of geometries.')

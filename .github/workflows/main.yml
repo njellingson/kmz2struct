@@ -7,6 +7,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
+      - name: Copy kmz2struct to src directory to make code coverage work right
+        run: mkdir src && cp kmz2struct.m src/kmz2struct.m
       - name: Set up MATLAB
         uses: matlab-actions/setup-matlab@v1
       - name: Run tests and generate artifacts
