@@ -4,7 +4,8 @@
 % we will just remove the test from the code coverage.
 
 % Code coverage configuration
-code_coverage_results_file = 'code-coverage/coverage.xml';
+[current_directory,~,~] = fileparts(mfilename('fullpath'));
+code_coverage_results_file = fullfile(current_directory,'code-coverage','coverage.xml');
 files_to_exclude = {'test_kmz2struct','remove_test_from_code_coverage'};
 
 % load xml
