@@ -1,15 +1,28 @@
-function kmlStruct = kmz2struct(filename)
+function kmz_struct = kmz2struct(filename)
+% Load a KML or a KMZ file as a MATLAB structure.
+%
+% :param filename: Filename of the KML or KMZ file to load.
+% :param kmz_struct: Structure with data for the Polygon, Line and Point
+% geometry placemarks found in the "filename."
+
+    % Determine if filename is a kml or kmz file.
     [~,~,ext] = fileparts(filename);
 
     if strcmpi(ext,'.kmz')
+
+        % Create name of temp .kmz2struct directory
         userDir = fullfile( ...
             char(java.lang.System.getProperty('user.home')), ...
-            '.kml2struct');
+            '.kmz2struct');
         if ~exist(userDir,'dir')
             mkdir(userDir);
         end
+
+        % Upzip the file to the temp directory
         unzip(filename, userDir);
 
+        % Search the temp directory for kml files and load each kml file
+        % individually
         files = dir(fullfile(userDir, '**', '*.kml'));
         N = length(files);
         kmlStructs = cell([1 N]);
@@ -17,102 +30,137 @@ function kmlStruct = kmz2struct(filename)
             kmlStructs{i} = readKMLfile( ...
                 fullfile(files(i).folder, files(i).name));
         end
-        kmlStruct = vertcat(kmlStructs{:});
+        kmz_struct = vertcat(kmlStructs{:});
 
+        % Clean up the temp directory
         rmdir(userDir,'s');
     else
-        kmlStruct = readKMLfile(filename);
+        % If input is a kml load that kml
+        kmz_struct = readKMLfile(filename);
     end
 end
 function kmlStruct = readKMLfile(filename)
-    xDoc = xmlread(filename);
-    start =  xDoc.item(0).item(1);
+% Function to read in kml file.
+%
+% :param filename: KML filename to load.
 
-    % Handle Styles :<
-    Styles = start.getElementsByTagName('Style');
-    stylehash = containers.Map('KeyType','char','ValueType','Any');
-    for j = 0:Styles.getLength-1
-        idxml = Styles.item(j).getAttributes.getNamedItem('id');
+    % Read the KML as an XML DOM
+    doc = xmlread(filename);
+    starting_node =  doc.item(0).item(1);
+
+    % Find styles and create a hash table with a struct of colors for the
+    % different geometries
+    styles = starting_node.getElementsByTagName('Style');
+    style_hash = containers.Map('KeyType','char','ValueType','Any');
+    for j = 0:styles.getLength-1
+        idxml = styles.item(j).getAttributes.getNamedItem('id');
         if ~isempty(idxml)
             id = char(idxml.getTextContent);
-            [pointcolor,linecolor,polycolor] = parseStyle(Styles.item(j));
-            stylehash(id) = struct('pointcolor',pointcolor,'linecolor',linecolor,'polycolor',polycolor);
+            [pointcolor,linecolor,polycolor] = parseStyle(styles.item(j));
+            style_hash(id) = struct('pointcolor',pointcolor,...
+                'linecolor',linecolor,...
+                'polycolor',polycolor);
         end
     end
-    StyleMaps = start.getElementsByTagName('StyleMap');
-    for j = 0:StyleMaps.getLength-1
-        id = char(StyleMaps.item(j).getAttributes.getNamedItem('id').getTextContent);
-        keys = StyleMaps.item(j).getElementsByTagName('key');
+
+    % Handle style maps
+    style_maps = starting_node.getElementsByTagName('StyleMap');
+    for j = 0:style_maps.getLength-1
+        id = char(style_maps.item(j).getAttributes.getNamedItem('id').getTextContent);
+        keys = style_maps.item(j).getElementsByTagName('key');
         index = 0;
         for k = 0:keys.getLength-1
             found = strcmp(char(keys.item(k).getTextContent),'normal');
             if found; index = k; break; end
         end
-        styleUrl = char(keys.item(index).getParentNode.getElementsByTagName('styleUrl').item(0).getTextContent);
-        stylehash(id) = stylehash(styleUrl(2:end));
+        url_node =keys.item(index).getParentNode.getElementsByTagName('styleUrl');
+        style_url = char(url_node.item(0).getTextContent);
+        style_hash(id) = style_hash(style_url(2:end));
     end
 
-    kmlStruct = recursive_kml2struct(start,'',stylehash);
+    % Find Geometries
+    kmlStruct = recursive_kml2struct(starting_node,'',style_hash);
 end
-function kmlStruct = recursive_kml2struct(folder_element,folder,stylehash)
 
-    % Find number of placemarks and name of folder
+function kmlStruct = recursive_kml2struct(folder_node,folder,style_hash)
+% Recursive Function to search for kml placemarks
+%
+% :param folder_node: Node to search for placemarks in.
+% :param folder: Character array to represent the folder of folder_node.
+% :param style_hash: Hash table of structures containing possible colors
+% for the kml placemarks.
+
+    % Find number of placemarks and name of folder.
     name = 'none';
     number_placemarks = 0;
-    for i = 0:folder_element.getLength()-1
-        if strcmp(folder_element.item(i).getNodeName,'Placemark')
+    for i = 0:folder_node.getLength()-1
+        if strcmp(folder_node.item(i).getNodeName,'Placemark')
             number_placemarks = number_placemarks + 1;
-        elseif strcmp(folder_element.item(i).getNodeName,'name')
-            name = char(folder_element.item(i).getTextContent);
+        elseif strcmp(folder_node.item(i).getNodeName,'name')
+            name = char(folder_node.item(i).getTextContent);
         end
     end
-    if strcmpi(folder_element.getNodeName,'Folder')
+
+    % If we are searching a folder set the new folder name.
+    if strcmpi(folder_node.getNodeName,'Folder')
         folder = [folder '/' name];
     end
 
     % Find Placemark Data
     count = 1;
     kmlStructs = cell([1 number_placemarks]);
-    for i = 0:folder_element.getLength()-1
-        current = folder_element.item(i);
+    for i = 0:folder_node.getLength()-1
+        current = folder_node.item(i);
         NodeName = current.getNodeName;
         if strcmpi(NodeName,'Folder')
-            kmlStructs{count} = recursive_kml2struct(current,folder,stylehash);
+            kmlStructs{count} = recursive_kml2struct(current,folder,style_hash);
             count = count + 1;
         elseif strcmpi(NodeName,'Placemark')
-            kmlStructs{count} = parsePlacemark(current,folder,stylehash);
+            kmlStructs{count} = parsePlacemark(current,folder,style_hash);
             count = count + 1;
         end
     end
     kmlStruct = horzcat(kmlStructs{:});
 end
-function kmlStruct = parsePlacemark(element,folder,stylehash)
-    namexml = element.getElementsByTagName('name').item(0);
+function kmlStruct = parsePlacemark(node,folder,style_hash)
+% Parse a KML placemark DOM element to a MATLAB struct.
+%
+% :param node: The KML placemark node.
+% :param folder: Character array reperesenting the folder of the placemark.
+% :param style_hash: A hash table containing styles they may apply to this
+% place mark.
+
+    % Get the name of this element
+    namexml = node.getElementsByTagName('name').item(0);
     if ~isempty(namexml)
         name = char(namexml.getTextContent);
     else
         name = 'Unknown';
     end
-    if ~isempty(element.getElementsByTagName('description').item(0))
-        description = char(element.getElementsByTagName('description').item(0).getTextContent);
+
+    % Get the description of the element
+    if ~isempty(node.getElementsByTagName('description').item(0))
+        description = char(node.getElementsByTagName('description').item(0).getTextContent);
     end
 
-    % Try to find Style
-    styleUrl = element.getElementsByTagName('styleUrl').item(0);
-    if ~isempty(styleUrl)
-        id = char(styleUrl.getTextContent);
-        s = stylehash(id(2:end));
-        pointcolor = s.pointcolor;linecolor = s.linecolor;polycolor = s.polycolor;
+    % Try to match the style either to the style_has or read the style from
+    % the node itself
+    style_url = node.getElementsByTagName('styleUrl').item(0);
+    if ~isempty(style_url)
+        id = char(style_url.getTextContent);
+        s = style_hash(id(2:end));
+        pointcolor = s.pointcolor; linecolor = s.linecolor; polycolor = s.polycolor;
     else
-        [pointcolor,linecolor,polycolor] = parseStyle(element);
+        [pointcolor,linecolor,polycolor] = parseStyle(node);
     end
 
-    number_features = element.getElementsByTagName('coordinates').getLength();
+    % Find the number of features in this placemark
+    number_features = node.getElementsByTagName('coordinates').getLength();
     kmlStructs = cell([1 number_features]);
     count = 1;
 
     % Handle Points
-    points = element.getElementsByTagName('Point');
+    points = node.getElementsByTagName('Point');
     for i = 0:points.getLength()-1
         coords = char(points.item(i).getElementsByTagName('coordinates').item(0).getTextContent);
         [Lat,Lon] = parseCoordinates(coords);
@@ -133,7 +181,7 @@ function kmlStruct = parsePlacemark(element,folder,stylehash)
     end
 
     % Handle Polygons
-    polygons = element.getElementsByTagName('Polygon');
+    polygons = node.getElementsByTagName('Polygon');
     for i = 0:polygons.getLength()-1
         coords = char(polygons.item(i).getElementsByTagName('coordinates').item(0).getTextContent);
         [Lat,Lon] = parseCoordinates(coords);
@@ -154,7 +202,7 @@ function kmlStruct = parsePlacemark(element,folder,stylehash)
     end
 
     % Handle Lines
-    lines = element.getElementsByTagName('LineString');
+    lines = node.getElementsByTagName('LineString');
     for i = 0:lines.getLength()-1
         coords = char(lines.item(i).getElementsByTagName('coordinates').item(0).getTextContent);
         [Lat,Lon] = parseCoordinates(coords);
@@ -179,14 +227,24 @@ function kmlStruct = parsePlacemark(element,folder,stylehash)
 end
 
 function [Lat,Lon] = parseCoordinates(string)
+% Read in the "Coordinates" tag of a KML file as quickly as possible.
+%
+% :param string: Character array from the "Coordinates" tag.
+
+    % Find the coordinates and convert to doubles
     coords = str2double(regexp(string,'[,\s]+','split'));
     coords(isnan(coords)) = [];
+
+    % Determine if these are 3D or 2D coords and shape correctly
     [m,n] = size(coords);
     if length(coords) == sum(string==',') * 2
         coords = reshape(coords,2,m*n/2)';
     else
         coords = reshape(coords,3,m*n/3)';
     end
+
+    % Parse coords to Lat and Lon. If Mapping Toolboxes exists use it to
+    % clean the polygon slightly.
     if license('test', 'map_toolbox')
         [Lat, Lon] = poly2ccw(coords(:,2),coords(:,1));
     else
@@ -194,90 +252,34 @@ function [Lat,Lon] = parseCoordinates(string)
         Lon=coords(:,1);
     end
 end
-function [pointcolor,linecolor,polycolor] = parseStyle(element)
-    % Try to find Style
+
+function [pointcolor,linecolor,polycolor] = parseStyle(node)
+% Load style from a "Style" KML tag. If we fail return the color blue.
+%
+% :param node: A style node to find colors in.
     try
-        pointcolorhex = char(element.getElementsByTagName('IconStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
+        pointcolorhex = char(node.getElementsByTagName('IconStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
         pointcolor = hex2rgb_kmlwrapper(pointcolorhex);
     catch
         pointcolor = [0.6758    0.8438    0.8984];
     end
     try
-        linecolorhex = char(element.getElementsByTagName('LineStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
+        linecolorhex = char(node.getElementsByTagName('LineStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
         linecolor = hex2rgb_kmlwrapper(linecolorhex);
     catch
         linecolor = [0.6758    0.8438    0.8984];
     end
     try
-        polycolorhex = char(element.getElementsByTagName('PolyStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
+        polycolorhex = char(node.getElementsByTagName('PolyStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
         polycolor = hex2rgb_kmlwrapper(polycolorhex);
     catch
         polycolor = [0.6758    0.8438    0.8984];
     end
 end
-function [ rgb] = hex2rgb_kmlwrapper(hex)
-    rgb = hex2rgb(hex([7 8 5 6 3 4]));
-end
-function [ rgb ] = hex2rgb(hex,range)
-% hex2rgb converts hex color values to rgb arrays on the range 0 to 1.
-%
-%
-% * * * * * * * * * * * * * * * * * * * *
-% SYNTAX:
-% rgb = hex2rgb(hex) returns rgb color values in an n x 3 array. Values are
-%                    scaled from 0 to 1 by default.
-%
-% rgb = hex2rgb(hex,256) returns RGB values scaled from 0 to 255.
-%
-%
-% * * * * * * * * * * * * * * * * * * * *
-% EXAMPLES:
-%
-% myrgbvalue = hex2rgb('#334D66')
-%    = 0.2000    0.3020    0.4000
-%
-%
-% myrgbvalue = hex2rgb('334D66')  % <-the # sign is optional
-%    = 0.2000    0.3020    0.4000
-%
-%
-% myRGBvalue = hex2rgb('#334D66',256)
-%    = 51    77   102
-%
-%
-% myhexvalues = ['#334D66';'#8099B3';'#CC9933';'#3333E6'];
-% myrgbvalues = hex2rgb(myhexvalues)
-%    =   0.2000    0.3020    0.4000
-%        0.5020    0.6000    0.7020
-%        0.8000    0.6000    0.2000
-%        0.2000    0.2000    0.9020
-%
-%
-% myhexvalues = ['#334D66';'#8099B3';'#CC9933';'#3333E6'];
-% myRGBvalues = hex2rgb(myhexvalues,256)
-%    =   51    77   102
-%       128   153   179
-%       204   153    51
-%        51    51   230
-%
-% HexValsAsACharacterArray = {'#334D66';'#8099B3';'#CC9933';'#3333E6'};
-% rgbvals = hex2rgb(HexValsAsACharacterArray)
-%
-% * * * * * * * * * * * * * * * * * * * *
-% Chad A. Greene, April 2014
-%
-% Updated August 2014: Functionality remains exactly the same, but it's a
-% little more efficient and more robust. Thanks to Stephen Cobeldick for
-% the improvement tips. In this update, the documentation now shows that
-% the range may be set to 256. This is more intuitive than the previous
-% style, which scaled values from 0 to 255 with range set to 255.  Now you
-% can enter 256 or 255 for the range, and the answer will be the same--rgb
-% values scaled from 0 to 255. Function now also accepts character arrays
-% as input.
-%
-% * * * * * * * * * * * * * * * * * * * *
-% See also rgb2hex, dec2hex, hex2num, and ColorSpec.
-%
+
+function dec_rgb = hex2rgb_kmlwrapper(hex)
+% This code is modified from Chad Greene's original hex2rgb function.
+% link: https://www.mathworks.com/matlabcentral/fileexchange/45727-hex2rgb
 % Copyright (c) 2014, Chad Greene
 % All rights reserved.
 %
@@ -286,7 +288,6 @@ function [ rgb ] = hex2rgb(hex,range)
 %
 % * Redistributions of source code must retain the above copyright notice, this
 %   list of conditions and the following disclaimer.
-%
 % * Redistributions in binary form must reproduce the above copyright notice,
 %   this list of conditions and the following disclaimer in the documentation
 %   and/or other materials provided with the distribution
@@ -303,37 +304,6 @@ function [ rgb ] = hex2rgb(hex,range)
 % CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 % OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 % OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-% Input checks:
-assert(nargin>0&nargin<3,'hex2rgb function must have one or two inputs.')
-if nargin==2
-    assert(isscalar(range)==1,'Range must be a scalar, either "1" to scale from 0 to 1 or "256" to scale from 0 to 255.')
-end%% Tweak inputs if necessary:
-if iscell(hex)
-    assert(isvector(hex)==1,'Unexpected dimensions of input hex values.')
-
-    % In case cell array elements are separated by a comma instead of a
-    % semicolon, reshape hex:
-    if isrow(hex)
-        hex = hex';
-    end
-
-    % If input is cell, convert to matrix:
-    hex = cell2mat(hex);
-end
-if strcmpi(hex(1,1),'#')
-    hex(:,1) = [];
-end
-if nargin == 1
-    range = 1;
-end
-% Convert from hex to rgb:
-switch range
-    case 1
-        rgb = reshape(sscanf(hex.','%2x'),3,[]).'/255;
-    case {255,256}
-        rgb = reshape(sscanf(hex.','%2x'),3,[]).';
-
-    otherwise
-        error('Range must be either "1" to scale from 0 to 1 or "256" to scale from 0 to 255.')
-end
+    hex_rgb = hex([7 8 5 6 3 4]);
+    dec_rgb = reshape(sscanf(hex_rgb.','%2x'),3,[]).'/255;
 end
