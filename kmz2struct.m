@@ -9,8 +9,7 @@ function kmz_struct = kmz2struct(filename)
     [~,~,ext] = fileparts(filename);
 
     if strcmpi(ext,'.kmz')
-
-        % Create name of temp .kmz2struct directory
+        % Create temp .kmz2struct directory
         userDir = fullfile( ...
             char(java.lang.System.getProperty('user.home')), ...
             '.kmz2struct');
@@ -257,20 +256,29 @@ function [pointcolor,linecolor,polycolor] = parseStyle(node)
 % Load style from a "Style" KML tag. If we fail return the color blue.
 %
 % :param node: A style node to find colors in.
+
+    % Create anon function to get color by style
+    get_color_by_style = @(type)char(node.getElementsByTagName(type).item(0).getElementsByTagName('color').item(0).getTextContent);
+    
+    % Attempt to load color for point geometry
     try
-        pointcolorhex = char(node.getElementsByTagName('IconStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
+        pointcolorhex = get_color_by_style('IconStyle');
         pointcolor = hex2rgb_kmlwrapper(pointcolorhex);
     catch
         pointcolor = [0.6758    0.8438    0.8984];
     end
+
+    % Attempt to load color for line geometry
     try
-        linecolorhex = char(node.getElementsByTagName('LineStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
+        linecolorhex = get_color_by_style('LineStyle');
         linecolor = hex2rgb_kmlwrapper(linecolorhex);
     catch
         linecolor = [0.6758    0.8438    0.8984];
     end
+
+    % Attempt to load color for polygon geometry
     try
-        polycolorhex = char(node.getElementsByTagName('PolyStyle').item(0).getElementsByTagName('color').item(0).getTextContent);
+        polycolorhex = get_color_by_style('PolyStyle');
         polycolor = hex2rgb_kmlwrapper(polycolorhex);
     catch
         polycolor = [0.6758    0.8438    0.8984];
